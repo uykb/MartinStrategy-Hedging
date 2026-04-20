@@ -1,7 +1,7 @@
 exchange:
   api_key: ""
   api_secret: ""
-  use_testnet: false
+  use_testnet: true
 
 strategies:
   - name: "HYPE_Long"
