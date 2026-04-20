@@ -1,0 +1,35 @@
+exchange:
+  api_key: ""
+  api_secret: ""
+  use_testnet: false
+
+strategies:
+  - name: "HYPE_Long"
+    symbol: "HYPEUSDT"
+    direction: "long"
+    enabled: true
+    capital_weight: 1.0
+    max_safety_orders: 9
+    atr_period: 14
+
+  - name: "SOL_Short"
+    symbol: "SOLUSDT"
+    direction: "short"
+    enabled: true
+    capital_weight: 1.0
+    max_safety_orders: 9
+    atr_period: 14
+
+hedge:
+  enabled: true
+  ratio: 1.0
+  rebalance_threshold: 0.1
+
+storage:
+  sqlite_path: "bot.db"
+  redis_addr: "localhost:6379"
+  redis_pass: ""
+  redis_db: 0
+
+log:
+  level: "info"

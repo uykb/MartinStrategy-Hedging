@@ -1,0 +1,16 @@
+# Build artifacts
+/bot
+/bot.exe
+
+# Data directory
+data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
