@@ -8,7 +8,7 @@ strategies:
     symbol: "HYPEUSDT"
     direction: "long"
     enabled: true
-    capital_weight: 1.0
+    capital_weight: 2.0
     max_safety_orders: 9
     atr_period: 14
 
@@ -22,8 +22,17 @@ strategies:
 
 hedge:
   enabled: true
-  ratio: 1.0
-  rebalance_threshold: 0.1
+  ratio: 2.0
+  rebalance_threshold: 0.15
+
+notification:
+  discord_webhook_url: ""
+  enabled: true
+  notify_open: true
+  notify_close: true
+  notify_safety: true
+  notify_tp: true
+  notify_hedge_alert: true
 
 storage:
   sqlite_path: "bot.db"

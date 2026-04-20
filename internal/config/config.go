@@ -13,6 +13,7 @@ type Config struct {
 	Hedge      HedgeConfig       `mapstructure:"hedge"`
 	Storage    StorageConfig     `mapstructure:"storage"`
 	Log        LogConfig         `mapstructure:"log"`
+	Notification NotificationConfig `mapstructure:"notification"`
 }
 
 // ExchangeConfig holds exchange connection details
@@ -53,6 +54,17 @@ type LogConfig struct {
 	Level string `mapstructure:"level"`
 }
 
+// NotificationConfig holds notification settings
+type NotificationConfig struct {
+	DiscordWebhookURL string `mapstructure:"discord_webhook_url"`
+	Enabled           bool   `mapstructure:"enabled"`
+	NotifyOpen        bool   `mapstructure:"notify_open"`
+	NotifyClose       bool   `mapstructure:"notify_close"`
+	NotifySafety      bool   `mapstructure:"notify_safety"`
+	NotifyTP          bool   `mapstructure:"notify_tp"`
+	NotifyHedgeAlert  bool   `mapstructure:"notify_hedge_alert"`
+}
+
 func LoadConfig(path string) (*Config, error) {
 	viper.SetConfigFile(path)
 	viper.SetConfigType("yaml")
@@ -90,6 +102,26 @@ func LoadConfig(path string) (*Config, error) {
 		if cfg.Strategies[i].AtrPeriod == 0 {
 			cfg.Strategies[i].AtrPeriod = 14
 		}
+	}
+
+	// Set defaults for notification config
+	if !cfg.Notification.Enabled {
+		cfg.Notification.Enabled = false
+	}
+	if !cfg.Notification.NotifyOpen {
+		cfg.Notification.NotifyOpen = true
+	}
+	if !cfg.Notification.NotifyClose {
+		cfg.Notification.NotifyClose = true
+	}
+	if !cfg.Notification.NotifySafety {
+		cfg.Notification.NotifySafety = true
+	}
+	if !cfg.Notification.NotifyTP {
+		cfg.Notification.NotifyTP = true
+	}
+	if !cfg.Notification.NotifyHedgeAlert {
+		cfg.Notification.NotifyHedgeAlert = true
 	}
 
 	return &cfg, nil

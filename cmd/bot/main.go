@@ -8,6 +8,7 @@ import (
 	"github.com/uykb/MartinStrategy-Hedging/internal/config"
 	"github.com/uykb/MartinStrategy-Hedging/internal/core"
 	"github.com/uykb/MartinStrategy-Hedging/internal/exchange"
+	"github.com/uykb/MartinStrategy-Hedging/internal/notifier"
 	"github.com/uykb/MartinStrategy-Hedging/internal/storage"
 	"github.com/uykb/MartinStrategy-Hedging/internal/strategy"
 	"github.com/uykb/MartinStrategy-Hedging/internal/utils"
@@ -25,8 +26,11 @@ func main() {
 	}
 	defer utils.Logger.Sync()
 
+	notifier.InitNotifier(&cfg.Notification)
+
 	utils.Logger.Info("Starting MartinStrategy Hedging Bot",
 		zap.Int("strategies", len(cfg.Strategies)),
+		zap.Bool("discord_enabled", cfg.Notification.Enabled),
 	)
 
 	db, err := storage.InitStorage(cfg.Storage.SqlitePath, cfg.Storage.RedisAddr, cfg.Storage.RedisPass, cfg.Storage.RedisDB)

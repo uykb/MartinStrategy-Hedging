@@ -7,6 +7,8 @@
 ## 特性
 
 - **多空对冲**: 同时运行做多和做空策略，自动维持对冲比例
+- **资金比例**: 支持自定义多空资金比例（如 2:1）
+- **Discord 推送**: 实时推送开仓、平仓、加仓、止盈、对冲告警等消息
 - **事件驱动架构**: 基于 EventBus 的异步消息处理，高并发低延迟
 - **有限状态机**: 清晰的状态流转，避免逻辑混乱
 - **多交易对支持**: 可同时交易多个币种
@@ -28,6 +30,7 @@
 │   ├── exchange/           # 交易所适配 (Binance WebSocket)
 │   ├── strategy/           # 策略逻辑 (Martingale FSM + HedgeCoordinator)
 │   ├── storage/            # 数据存储 (SQLite, Redis)
+│   ├── notifier/           # 通知推送 (Discord Webhook)
 │   └── utils/              # 工具库 (Logger, ATR)
 ├── config.yaml             # 配置文件
 ├── docker-compose.yml      # Docker Compose
@@ -81,7 +84,7 @@ strategies:
     symbol: "HYPEUSDT"     # 交易对
     direction: "long"      # 方向: long 或 short
     enabled: true          # 是否启用
-    capital_weight: 1.0    # 资金权重
+    capital_weight: 2.0    # 资金权重 (做多2份)
     max_safety_orders: 9   # 最大加仓层数
     atr_period: 14         # ATR 周期
 
@@ -89,14 +92,23 @@ strategies:
     symbol: "SOLUSDT"
     direction: "short"
     enabled: true
-    capital_weight: 1.0    # 1:1 对冲
+    capital_weight: 1.0    # 做空1份 (2:1 比例)
     max_safety_orders: 9
     atr_period: 14
 
 hedge:
   enabled: true            # 是否启用对冲协调
-  ratio: 1.0               # 目标对冲比例 (long/short)
-  rebalance_threshold: 0.1 # 偏差超过10%时告警
+  ratio: 2.0               # 目标对冲比例 (long/short = 2:1)
+  rebalance_threshold: 0.15 # 偏差超过15%时告警
+
+notification:
+  discord_webhook_url: ""  # Discord Webhook URL
+  enabled: true            # 是否启用通知
+  notify_open: true        # 开仓通知
+  notify_close: true       # 平仓通知
+  notify_safety: true      # 加仓通知
+  notify_tp: true          # 止盈通知
+  notify_hedge_alert: true # 对冲告警
 
 storage:
   sqlite_path: "bot.db"    # SQLite 数据库路径
@@ -183,6 +195,49 @@ export MARTIN_EXCHANGE_API_SECRET="your_api_secret"
 | 7    | 13   | 13                |
 | 8    | 21   | 21                |
 | 9    | 34   | 34                |
+
+## Discord 通知推送
+
+### 配置 Webhook
+
+1. 在 Discord 频道设置中创建 Webhook
+2. 复制 Webhook URL 到 `config.yaml` 的 `notification.discord_webhook_url`
+
+### 推送事件类型
+
+| 事件 | 配置项 | 说明 | 颜色 |
+|------|--------|------|------|
+| 🟢 开仓 | `notify_open` | 底仓成交 | 绿色/红色 |
+| 🟠 加仓 | `notify_safety` | 马丁加仓成交 | 橙色 |
+| 🔵 止盈 | `notify_tp` | 止盈单挂单更新 | 蓝色 |
+| ⚪ 平仓 | `notify_close` | 止盈/手动平仓 | 绿/灰/红 |
+| 🚨 对冲告警 | `notify_hedge_alert` | 对冲比例偏离阈值 | 红橙 |
+
+### 通知示例
+
+```
+🟢 开仓通知 - HYPEUSDT LONG
+HYPEUSDT 已开仓
+方向: LONG
+价格: 39.6380
+数量: 2.5200
+仓位价值: 100.00 USDT
+
+🟠 加仓通知 - SOLUSDT SHORT 第3层
+SOLUSDT 马丁加仓 #3
+方向: SHORT
+加仓价格: 155.0000
+加仓数量: 0.6500
+均价: 152.5000
+
+🚨 对冲比例告警
+多空对冲比例偏离目标值
+多头仓位: 2000.00 USDT
+空头仓位: 800.00 USDT
+当前比例: 2.50
+目标比例: 2.00
+偏差: 25.00%
+```
 
 ## 对冲状态监控
 

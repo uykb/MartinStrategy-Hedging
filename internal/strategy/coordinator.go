@@ -6,6 +6,7 @@ import (
 
 	"github.com/uykb/MartinStrategy-Hedging/internal/config"
 	"github.com/uykb/MartinStrategy-Hedging/internal/core"
+	"github.com/uykb/MartinStrategy-Hedging/internal/notifier"
 	"github.com/uykb/MartinStrategy-Hedging/internal/utils"
 	"go.uber.org/zap"
 )
@@ -94,6 +95,13 @@ func (hc *HedgeCoordinator) checkHedgeStatus() {
 		utils.Logger.Warn("Hedge ratio deviation exceeds threshold, consider rebalancing",
 			zap.Float64("deviation", status.Deviation),
 			zap.Float64("threshold", hc.cfg.RebalanceThreshold),
+		)
+		notifier.GetNotifier().NotifyHedgeAlert(
+			status.LongValue,
+			status.ShortValue,
+			status.Ratio,
+			status.TargetRatio,
+			status.Deviation,
 		)
 	}
 }

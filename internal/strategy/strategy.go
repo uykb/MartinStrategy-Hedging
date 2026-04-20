@@ -12,6 +12,7 @@ import (
 	"github.com/uykb/MartinStrategy-Hedging/internal/config"
 	"github.com/uykb/MartinStrategy-Hedging/internal/core"
 	"github.com/uykb/MartinStrategy-Hedging/internal/exchange"
+	"github.com/uykb/MartinStrategy-Hedging/internal/notifier"
 	"github.com/uykb/MartinStrategy-Hedging/internal/storage"
 	"github.com/uykb/MartinStrategy-Hedging/internal/utils"
 	"go.uber.org/zap"
@@ -235,11 +236,18 @@ func (s *MartingaleStrategy) handleOrderUpdate(ctx context.Context, event core.E
 				s.currentState = StateInPosition
 				s.mu.Unlock()
 
+				execPrice, _ := strconv.ParseFloat(order.AveragePrice, 64)
+				execQty, _ := strconv.ParseFloat(order.LastFilledQty, 64)
+
 				if prevState == StateIdle || prevState == StatePlacingGrid {
-					execPrice, _ := strconv.ParseFloat(order.AveragePrice, 64)
 					go s.placeGridOrders(execPrice)
+					notifier.GetNotifier().NotifyOpen(s.symbol, string(s.direction), execPrice, execQty, execPrice*execQty)
 				} else {
 					utils.Logger.Info("Safety Order Filled. Re-calculating TP.")
+					pos, _ := s.exchange.GetPosition(s.symbol)
+					avgPrice, _ := strconv.ParseFloat(pos.EntryPrice, 64)
+					safetyLevel := s.getFilledSafetyCount(s.symbol)
+					notifier.GetNotifier().NotifySafetyOrder(s.symbol, string(s.direction), float64(safetyLevel), execPrice, execQty, avgPrice)
 					go s.updateTP()
 				}
 			} else if order.Side == futures.SideTypeSell {
@@ -247,11 +255,15 @@ func (s *MartingaleStrategy) handleOrderUpdate(ctx context.Context, event core.E
 					zap.String("type", string(order.Type)),
 				)
 
+				execPrice, _ := strconv.ParseFloat(order.AveragePrice, 64)
+				execQty, _ := strconv.ParseFloat(order.LastFilledQty, 64)
 				s.mu.Lock()
 				s.currentState = StateIdle
 				s.currentTPOrderID = 0
 				s.positionValue = 0
 				s.mu.Unlock()
+
+				notifier.GetNotifier().NotifyClose(s.symbol, string(s.direction), execPrice, execQty, 0)
 
 				s.exchange.CancelAllOrders(s.symbol)
 				time.Sleep(10 * time.Second)
@@ -266,11 +278,18 @@ func (s *MartingaleStrategy) handleOrderUpdate(ctx context.Context, event core.E
 				s.currentState = StateInPosition
 				s.mu.Unlock()
 
+				execPrice, _ := strconv.ParseFloat(order.AveragePrice, 64)
+				execQty, _ := strconv.ParseFloat(order.LastFilledQty, 64)
+
 				if prevState == StateIdle || prevState == StatePlacingGrid {
-					execPrice, _ := strconv.ParseFloat(order.AveragePrice, 64)
 					go s.placeGridOrders(execPrice)
+					notifier.GetNotifier().NotifyOpen(s.symbol, string(s.direction), execPrice, execQty, execPrice*execQty)
 				} else {
 					utils.Logger.Info("Safety Order Filled. Re-calculating TP.")
+					pos, _ := s.exchange.GetPosition(s.symbol)
+					avgPrice, _ := strconv.ParseFloat(pos.EntryPrice, 64)
+					safetyLevel := s.getFilledSafetyCount(s.symbol)
+					notifier.GetNotifier().NotifySafetyOrder(s.symbol, string(s.direction), float64(safetyLevel), execPrice, execQty, avgPrice)
 					go s.updateTP()
 				}
 			} else if order.Side == futures.SideTypeBuy {
@@ -278,11 +297,15 @@ func (s *MartingaleStrategy) handleOrderUpdate(ctx context.Context, event core.E
 					zap.String("type", string(order.Type)),
 				)
 
+				execPrice, _ := strconv.ParseFloat(order.AveragePrice, 64)
+				execQty, _ := strconv.ParseFloat(order.LastFilledQty, 64)
 				s.mu.Lock()
 				s.currentState = StateIdle
 				s.currentTPOrderID = 0
 				s.positionValue = 0
 				s.mu.Unlock()
+
+				notifier.GetNotifier().NotifyClose(s.symbol, string(s.direction), execPrice, execQty, 0)
 
 				s.exchange.CancelAllOrders(s.symbol)
 				time.Sleep(10 * time.Second)
@@ -302,7 +325,7 @@ func (s *MartingaleStrategy) enterPosition(currentPrice float64) error {
 func (s *MartingaleStrategy) enterLong(currentPrice float64) error {
 	utils.Logger.Info("Entering Long Position...", zap.String("symbol", s.symbol))
 
-	unitQtyRaw := MinNotional / currentPrice
+	unitQtyRaw := (MinNotional * s.cfg.CapitalWeight) / currentPrice
 	unitQty := utils.RoundUpToTickSize(unitQtyRaw, s.stepSize)
 
 	if unitQty < s.minQty {
@@ -329,13 +352,15 @@ func (s *MartingaleStrategy) enterLong(currentPrice float64) error {
 	s.positionValue = baseQty * currentPrice
 	s.mu.Unlock()
 
+	notifier.GetNotifier().NotifyOpen(s.symbol, string(s.direction), currentPrice, baseQty, s.positionValue)
+
 	return nil
 }
 
 func (s *MartingaleStrategy) enterShort(currentPrice float64) error {
 	utils.Logger.Info("Entering Short Position...", zap.String("symbol", s.symbol))
 
-	unitQtyRaw := MinNotional / currentPrice
+	unitQtyRaw := (MinNotional * s.cfg.CapitalWeight) / currentPrice
 	unitQty := utils.RoundUpToTickSize(unitQtyRaw, s.stepSize)
 
 	if unitQty < s.minQty {
@@ -361,6 +386,8 @@ func (s *MartingaleStrategy) enterShort(currentPrice float64) error {
 	s.mu.Lock()
 	s.positionValue = baseQty * currentPrice
 	s.mu.Unlock()
+
+	notifier.GetNotifier().NotifyOpen(s.symbol, string(s.direction), currentPrice, baseQty, s.positionValue)
 
 	return nil
 }
@@ -439,7 +466,7 @@ func (s *MartingaleStrategy) placeGridOrders(execPrice float64) {
 		atr1d = defaultATR
 	}
 
-	unitQty := utils.RoundUpToTickSize(MinNotional/entryPrice, s.stepSize)
+	unitQty := utils.RoundUpToTickSize((MinNotional*s.cfg.CapitalWeight)/entryPrice, s.stepSize)
 
 	utils.Logger.Info("Placing Grid Orders",
 		zap.String("symbol", s.symbol),
@@ -447,6 +474,7 @@ func (s *MartingaleStrategy) placeGridOrders(execPrice float64) {
 		zap.Float64("Entry", entryPrice),
 		zap.Float64("ATR30m", atr30m),
 		zap.Float64("UnitQty", unitQty),
+		zap.Float64("CapitalWeight", s.cfg.CapitalWeight),
 	)
 
 	gridDistances := []float64{
@@ -610,6 +638,8 @@ func (s *MartingaleStrategy) updateTP() {
 		return
 	}
 
+	notifier.GetNotifier().NotifyTP(s.symbol, string(s.direction), tpPrice, tpQty)
+
 	s.mu.Lock()
 	if s.currentState == StateIdle {
 		s.mu.Unlock()
@@ -683,4 +713,33 @@ func (s *MartingaleStrategy) GetSymbol() string {
 // GetDirection returns the strategy direction
 func (s *MartingaleStrategy) GetDirection() Direction {
 	return s.direction
+}
+
+// getFilledSafetyCount estimates the number of filled safety orders
+func (s *MartingaleStrategy) getFilledSafetyCount(symbol string) int {
+	pos, err := s.exchange.GetPosition(symbol)
+	if err != nil {
+		return 0
+	}
+	amt, _ := strconv.ParseFloat(pos.PositionAmt, 64)
+	entryPrice, _ := strconv.ParseFloat(pos.EntryPrice, 64)
+	if entryPrice == 0 || amt == 0 {
+		return 0
+	}
+	unitQty := utils.RoundUpToTickSize((MinNotional*s.cfg.CapitalWeight)/entryPrice, s.stepSize)
+	totalUnits := math.Abs(amt) / unitQty
+	count := 0
+	fibSum := 1
+	for i := 1; i <= s.cfg.MaxSafetyOrders; i++ {
+		fibSum += s.getFibonacci(i)
+		if totalUnits >= float64(fibSum)-0.5 {
+			count = i
+		} else {
+			break
+		}
+	}
+	if count == 0 {
+		count = 1
+	}
+	return count
 }
