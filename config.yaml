@@ -29,7 +29,7 @@ notification:
   discord_webhook_url: ""
   enabled: true
   notify_open: false
-  notify_close: false
+  notify_close: true
   notify_safety: true
   notify_tp: true
   notify_hedge_alert: false
