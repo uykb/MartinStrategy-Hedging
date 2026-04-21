@@ -12,8 +12,8 @@ strategies:
     max_safety_orders: 9
     atr_period: 14
 
-  - name: "SOL_Short"
-    symbol: "SOLUSDT"
+  - name: "LIT_Short"
+    symbol: "LITUSDT"
     direction: "short"
     enabled: true
     capital_weight: 1.0
