@@ -30,7 +30,7 @@ notification:
   enabled: true
   notify_open: false
   notify_close: true
-  notify_safety: true
+  notify_safety: false
   notify_tp: true
   notify_hedge_alert: false
 
