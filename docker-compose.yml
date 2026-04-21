@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: martinstrategy
     restart: unless-stopped
+    ports:
+      - "8080:8080"
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - ./data:/app/data

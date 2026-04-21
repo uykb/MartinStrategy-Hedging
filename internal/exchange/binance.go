@@ -276,3 +276,8 @@ func (bc *BinanceClient) CancelAllOrdersAllSymbols(symbols []string) error {
 func (bc *BinanceClient) IsTestnet() bool {
 	return bc.cfg.UseTestnet
 }
+
+// GetPrices returns all symbol prices
+func (bc *BinanceClient) GetPrices() ([]*futures.SymbolPrice, error) {
+	return bc.client.NewListPricesService().Do(context.Background())
+}

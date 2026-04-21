@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MartinStrategy Hedging Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.css">
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg-primary: #0B0E11;
+      --bg-secondary: #1E2329;
+      --bg-tertiary: #2B3139;
+      --text-primary: #EAECEF;
+      --text-secondary: #848E9C;
+      --accent: #F0B90B;
+      --accent-hover: #F8D12F;
+      --green: #0ECB81;
+      --red: #F6465D;
+      --border: #2B3139;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+    }
+
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .header .subtitle {
+      color: var(--text-secondary);
+      font-size: 13px;
+      margin-left: 12px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .last-update {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px 24px;
+    }
+
+    /* Strategy Tabs */
+    .strategy-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .strategy-tab {
+      padding: 10px 20px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .strategy-tab:hover {
+      border-color: var(--accent);
+    }
+
+    .strategy-tab.active {
+      border-color: var(--accent);
+      background: rgba(240, 185, 11, 0.08);
+    }
+
+    .strategy-tab .tab-symbol {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .strategy-tab .tab-direction {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .tab-direction.long { background: rgba(14, 203, 129, 0.15); color: var(--green); }
+    .tab-direction.short { background: rgba(246, 70, 93, 0.15); color: var(--red); }
+
+    .strategy-tab .tab-state {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Status Cards */
+    .status-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .status-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .status-card .label {
+      color: var(--text-secondary);
+      font-size: 12px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-card .value {
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .status-card .value.green { color: var(--green); }
+    .status-card .value.red { color: var(--red); }
+    .status-card .value.accent { color: var(--accent); }
+
+    .state-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 20px;
+    }
+
+    .state-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    .state-dot.idle { background: var(--text-secondary); }
+    .state-dot.position { background: var(--green); }
+    .state-dot.placing { background: var(--accent); }
+    .state-dot.closing { background: var(--red); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Grid Section */
+    .grid-section {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .grid-section { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-title::before {
+      content: '';
+      width: 3px;
+      height: 14px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    /* ATR Bars */
+    .atr-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .atr-bar .atr-label {
+      width: 40px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .atr-bar .atr-track {
+      flex: 1;
+      height: 8px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .atr-bar .atr-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+
+    .atr-bar .atr-value {
+      width: 80px;
+      text-align: right;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      color: var(--text-primary);
+    }
+
+    /* Tables */
+    .grid-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .grid-table th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      font-weight: 500;
+    }
+
+    .grid-table td {
+      padding: 10px 12px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      font-family: 'Courier New', monospace;
+    }
+
+    .grid-table tr:last-child td { border-bottom: none; }
+
+    .buy { color: var(--green); }
+    .sell { color: var(--red); }
+    .tp-row { background: rgba(240, 185, 11, 0.05); }
+
+    .orders-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .orders-table th {
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      font-weight: 500;
+    }
+
+    .orders-table td {
+      padding: 10px 12px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      font-family: 'Courier New', monospace;
+    }
+
+    .orders-table tr:last-child td { border-bottom: none; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-new { background: rgba(14, 203, 129, 0.15); color: var(--green); }
+    .badge-filled { background: rgba(240, 185, 11, 0.15); color: var(--accent); }
+    .badge-canceled { background: rgba(132, 142, 156, 0.15); color: var(--text-secondary); }
+    .badge-tp { background: rgba(240, 185, 11, 0.2); color: var(--accent); }
+
+    .active-orders { margin-bottom: 20px; }
+
+    /* PnL */
+    .pnl-chart { height: 300px; margin-bottom: 20px; }
+
+    .pnl-stats {
+      display: flex;
+      gap: 32px;
+      padding: 16px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      margin-top: 16px;
+    }
+
+    .pnl-stat .stat-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .pnl-stat .stat-value { font-size: 18px; font-weight: 600; }
+
+    .time-filter { display: flex; gap: 8px; margin-bottom: 16px; }
+
+    .time-btn {
+      padding: 6px 16px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .time-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .time-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--bg-primary);
+      font-weight: 600;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-secondary);
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+    }
+
+    .pagination .info { font-size: 13px; color: var(--text-secondary); }
+
+    .pagination .btns { display: flex; gap: 8px; }
+
+    .pagination .btns button {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-primary);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .pagination .btns button:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .pagination .btns button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .el-table {
+      --el-table-bg-color: var(--bg-secondary);
+      --el-table-tr-bg-color: var(--bg-secondary);
+      --el-table-header-bg-color: var(--bg-tertiary);
+      --el-table-row-hover-bg-color: var(--bg-tertiary);
+      --el-table-border-color: var(--border);
+      --el-table-text-color: var(--text-primary);
+      --el-table-header-text-color: var(--text-secondary);
+    }
+
+    .el-table th, .el-table td { border-color: var(--border) !important; }
+
+    .filter-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+
+    .filter-row input, .filter-row select {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .filter-row input { width: 200px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="header">
+      <div style="display:flex;align-items:baseline;">
+        <h1>MartinStrategy Hedging</h1>
+        <span class="subtitle">多策略对冲 | Binance Testnet</span>
+      </div>
+      <div class="header-right">
+        <span class="last-update">最后更新: {{ lastUpdate }}</span>
+      </div>
+    </div>
+
+    <div class="container">
+      <!-- Strategy Tabs -->
+      <div class="strategy-tabs">
+        <div
+          v-for="(strat, idx) in statusData.strategies"
+          :key="idx"
+          class="strategy-tab"
+          :class="{ active: activeStrategy === idx }"
+          @click="activeStrategy = idx"
+        >
+          <span class="tab-symbol">{{ strat.symbol }}</span>
+          <span class="tab-direction" :class="strat.direction.toLowerCase()">{{ strat.direction }}</span>
+          <span class="tab-state">{{ strat.state }}</span>
+        </div>
+      </div>
+
+      <template v-if="currentStrat">
+        <!-- Status Cards -->
+        <div class="status-cards">
+          <div class="status-card">
+            <div class="label">当前状态</div>
+            <div class="value">
+              <div class="state-indicator">
+                <div class="state-dot" :class="stateClass"></div>
+                {{ currentStrat.state }}
+              </div>
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="label">持仓均价</div>
+            <div class="value accent">{{ formatPrice(currentStrat.position?.entry_price) }}</div>
+          </div>
+          <div class="status-card">
+            <div class="label">持仓数量</div>
+            <div class="value">{{ formatQty(currentStrat.position?.amt) }}</div>
+          </div>
+          <div class="status-card">
+            <div class="label">标记价格</div>
+            <div class="value">{{ formatPrice(currentStrat.position?.mark_price) }}</div>
+          </div>
+          <div class="status-card">
+            <div class="label">未实现盈亏</div>
+            <div class="value" :class="pnlClass">{{ formatPnL(currentStrat.position?.unreal_pnl) }}</div>
+          </div>
+        </div>
+
+        <!-- ATR & Grid -->
+        <div class="grid-section">
+          <div class="panel">
+            <div class="panel-title">ATR 指标</div>
+            <div v-if="currentStrat.atr">
+              <div class="atr-bar" v-for="atr in atrList" :key="atr.key">
+                <span class="atr-label">{{ atr.label }}</span>
+                <div class="atr-track">
+                  <div class="atr-fill" :style="{ width: getAtrPercent(atr.key) }"></div>
+                </div>
+                <span class="atr-value">{{ formatPrice(currentStrat.atr[atr.key]) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title">网格挂单层级</div>
+            <table class="grid-table" v-if="currentStrat.grid_levels?.length">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>价格</th>
+                  <th>数量</th>
+                  <th>距离</th>
+                  <th>斐波那契</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="g in currentStrat.grid_levels" :key="g.level">
+                  <td>{{ g.level }}</td>
+                  <td :class="currentStrat.direction === 'LONG' ? 'buy' : 'sell'">{{ formatPrice(g.price) }}</td>
+                  <td>{{ formatQty(g.qty) }}</td>
+                  <td>{{ formatPrice(g.distance) }}</td>
+                  <td>{{ g.fib_mult }}x</td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-else class="empty-state">无网格数据</div>
+          </div>
+        </div>
+
+        <!-- Active Orders -->
+        <div class="panel active-orders">
+          <div class="panel-title">活跃订单</div>
+          <table class="orders-table" v-if="currentStrat.active_orders?.length">
+            <thead>
+              <tr>
+                <th>订单ID</th>
+                <th>类型</th>
+                <th>方向</th>
+                <th>价格</th>
+                <th>数量</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="o in currentStrat.active_orders" :key="o.id" :class="{ 'tp-row': o.id === currentStrat.tp_order_id }">
+                <td>{{ o.id }}</td>
+                <td>{{ o.type }}</td>
+                <td :class="o.side === 'BUY' ? 'buy' : 'sell'">{{ o.side }}</td>
+                <td>{{ formatPrice(o.price) }}</td>
+                <td>{{ formatQty(o.quantity) }}</td>
+                <td>
+                  <span class="badge" :class="getOrderBadge(o.status, o.id === currentStrat.tp_order_id)">
+                    {{ o.id === currentStrat.tp_order_id ? 'TP' : o.status }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="empty-state">无活跃订单</div>
+        </div>
+      </template>
+
+      <!-- History Orders -->
+      <div class="panel" style="margin-bottom: 20px;">
+        <div class="panel-title">历史订单</div>
+        <div class="filter-row">
+          <input v-model="orderFilter" placeholder="搜索交易对...">
+          <select v-model="orderSymbolFilter">
+            <option value="">全部交易对</option>
+            <option v-for="s in strategySymbols" :key="s" :value="s">{{ s }}</option>
+          </select>
+        </div>
+        <el-table
+          :data="orderHistory.orders"
+          style="width: 100%"
+          :header-cell-style="{ background: '#2B3139', color: '#848E9C', fontSize: '12px' }"
+          :cell-style="{ color: '#EAECEF', fontSize: '13px', fontFamily: 'Courier New' }"
+          v-loading="ordersLoading"
+        >
+          <el-table-column prop="symbol" label="交易对" width="100"></el-table-column>
+          <el-table-column prop="order_id" label="订单ID" width="120"></el-table-column>
+          <el-table-column prop="created_at" label="时间" width="180">
+            <template #default="scope">{{ formatTime(scope.row.created_at) }}</template>
+          </el-table-column>
+          <el-table-column prop="side" label="方向" width="80">
+            <template #default="scope">
+              <span :style="{ color: scope.row.side === 'BUY' ? '#0ECB81' : '#F6465D' }">{{ scope.row.side }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="type" label="类型" width="80"></el-table-column>
+          <el-table-column prop="price" label="价格" width="120">
+            <template #default="scope">{{ formatPrice(scope.row.price) }}</template>
+          </el-table-column>
+          <el-table-column prop="quantity" label="数量" width="100">
+            <template #default="scope">{{ formatQty(scope.row.quantity) }}</template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="scope">
+              <span class="badge" :class="getOrderBadge(scope.row.status)">{{ scope.row.status }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="pagination">
+          <span class="info">共 {{ orderHistory.total }} 条</span>
+          <div class="btns">
+            <button :disabled="orderHistory.page <= 1" @click="changeOrderPage(-1)">上一页</button>
+            <span style="padding: 6px 12px; color: var(--text-secondary);">{{ orderHistory.page }} / {{ totalPages }}</span>
+            <button :disabled="orderHistory.page >= totalPages" @click="changeOrderPage(1)">下一页</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PnL Chart -->
+      <div class="panel">
+        <div class="panel-title">累计盈亏</div>
+        <div class="time-filter">
+          <button class="time-btn" :class="{ active: pnlDays === 7 }" @click="loadPnL(7)">7天</button>
+          <button class="time-btn" :class="{ active: pnlDays === 30 }" @click="loadPnL(30)">30天</button>
+          <button class="time-btn" :class="{ active: pnlDays === 90 }" @click="loadPnL(90)">90天</button>
+        </div>
+        <div ref="pnlChart" class="pnl-chart"></div>
+        <div class="pnl-stats">
+          <div class="pnl-stat">
+            <div class="stat-label">累计盈亏</div>
+            <div class="stat-value" :style="{ color: pnlData.total_pnl >= 0 ? '#0ECB81' : '#F6465D' }">
+              {{ formatPnL(pnlData.total_pnl) }} USDT
+            </div>
+          </div>
+          <div class="pnl-stat">
+            <div class="stat-label">胜率</div>
+            <div class="stat-value" style="color: var(--accent);">{{ pnlData.win_rate?.toFixed(1) || 0 }}%</div>
+          </div>
+          <div class="pnl-stat">
+            <div class="stat-label">总交易</div>
+            <div class="stat-value">{{ pnlData.total_trades || 0 }} 笔</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
+
+    createApp({
+      setup() {
+        const statusData = reactive({ strategies: [] });
+        const activeStrategy = ref(0);
+        const orderHistory = reactive({ orders: [], total: 0, page: 1, size: 20 });
+        const orderFilter = ref('');
+        const orderSymbolFilter = ref('');
+        const ordersLoading = ref(false);
+        const pnlData = reactive({ daily_pnl: [], total_pnl: 0, win_rate: 0, total_trades: 0 });
+        const pnlDays = ref(7);
+        const pnlChart = ref(null);
+        let chartInstance = null;
+        const lastUpdate = ref('--');
+        let pollTimer = null;
+
+        const currentStrat = computed(() => {
+          return statusData.strategies[activeStrategy.value] || null;
+        });
+
+        const stateClass = computed(() => {
+          if (!currentStrat.value) return '';
+          switch (currentStrat.value.state) {
+            case 'IDLE': return 'idle';
+            case 'IN_POSITION': return 'position';
+            case 'PLACING_GRID': return 'placing';
+            case 'CLOSING': return 'closing';
+            default: return '';
+          }
+        });
+
+        const pnlClass = computed(() => {
+          if (!currentStrat.value) return '';
+          const pnl = currentStrat.value.position?.unreal_pnl || 0;
+          return pnl >= 0 ? 'green' : 'red';
+        });
+
+        const totalPages = computed(() => Math.ceil(orderHistory.total / orderHistory.size) || 1);
+
+        const strategySymbols = computed(() => {
+          return [...new Set(statusData.strategies.map(s => s.symbol))];
+        });
+
+        const atrList = [
+          { key: 'atr_30m', label: '30m' },
+          { key: 'atr_1h', label: '1h' },
+          { key: 'atr_4h', label: '4h' },
+          { key: 'atr_1d', label: '1d' },
+        ];
+
+        const maxAtr = computed(() => {
+          if (!currentStrat.value?.atr) return 0.0001;
+          const atr = currentStrat.value.atr;
+          return Math.max(atr.atr_30m || 0, atr.atr_1h || 0, atr.atr_4h || 0, atr.atr_1d || 0, 0.0001);
+        });
+
+        function getAtrPercent(key) {
+          if (!currentStrat.value?.atr) return '0%';
+          const val = currentStrat.value.atr[key] || 0;
+          return (val / maxAtr.value * 100).toFixed(0) + '%';
+        }
+
+        function formatPrice(v) {
+          if (v === undefined || v === null) return '--';
+          const n = parseFloat(v);
+          if (isNaN(n)) return '--';
+          if (n >= 1000) return n.toFixed(2);
+          if (n >= 1) return n.toFixed(4);
+          return n.toFixed(6);
+        }
+
+        function formatQty(v) {
+          if (v === undefined || v === null) return '--';
+          const n = parseFloat(v);
+          if (isNaN(n)) return '--';
+          return n.toFixed(4);
+        }
+
+        function formatPnL(v) {
+          if (v === undefined || v === null) return '0.00';
+          const n = parseFloat(v);
+          if (isNaN(n)) return '0.00';
+          return (n >= 0 ? '+' : '') + n.toFixed(2);
+        }
+
+        function formatTime(t) {
+          if (!t) return '--';
+          const d = new Date(t);
+          return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        function getOrderBadge(status, isTp) {
+          if (isTp) return 'badge-tp';
+          switch (status) {
+            case 'NEW': return 'badge-new';
+            case 'FILLED': return 'badge-filled';
+            case 'CANCELED': return 'badge-canceled';
+            default: return 'badge-new';
+          }
+        }
+
+        async function fetchStatus() {
+          try {
+            const res = await fetch('/api/status');
+            if (res.ok) {
+              const data = await res.json();
+              statusData.strategies = data.strategies;
+              lastUpdate.value = new Date().toLocaleTimeString('zh-CN');
+            }
+          } catch (e) {
+            console.error('Failed to fetch status:', e);
+          }
+        }
+
+        async function fetchOrders() {
+          ordersLoading.value = true;
+          try {
+            const sym = orderSymbolFilter.value || orderFilter.value;
+            const res = await fetch(`/api/orders?page=${orderHistory.page}&size=${orderHistory.size}&symbol=${sym}`);
+            if (res.ok) {
+              const data = await res.json();
+              orderHistory.orders = data.orders;
+              orderHistory.total = data.total;
+            }
+          } catch (e) {
+            console.error('Failed to fetch orders:', e);
+          } finally {
+            ordersLoading.value = false;
+          }
+        }
+
+        async function loadPnL(days) {
+          pnlDays.value = days;
+          try {
+            const res = await fetch(`/api/pnl?days=${days}`);
+            if (res.ok) {
+              const data = await res.json();
+              Object.assign(pnlData, data);
+              renderPnLChart();
+            }
+          } catch (e) {
+            console.error('Failed to fetch PnL:', e);
+          }
+        }
+
+        function renderPnLChart() {
+          if (!chartInstance) {
+            chartInstance = echarts.init(pnlChart.value, null, { renderer: 'canvas' });
+          }
+
+          const daily = pnlData.daily_pnl || [];
+          daily.sort((a, b) => a.date.localeCompare(b.date));
+
+          // Aggregate by date across all symbols
+          const dateMap = {};
+          daily.forEach(d => {
+            dateMap[d.date] = (dateMap[d.date] || 0) + d.pnl;
+          });
+
+          const dates = Object.keys(dateMap).sort();
+          let cumulative = 0;
+          const cumulativeData = dates.map(d => {
+            cumulative += dateMap[d];
+            return cumulative;
+          });
+
+          const option = {
+            backgroundColor: 'transparent',
+            grid: { top: 20, right: 20, bottom: 30, left: 60 },
+            xAxis: {
+              type: 'category',
+              data: dates,
+              axisLine: { lineStyle: { color: '#2B3139' } },
+              axisLabel: { color: '#848E9C', fontSize: 11 },
+            },
+            yAxis: {
+              type: 'value',
+              splitLine: { lineStyle: { color: '#2B3139', type: 'dashed' } },
+              axisLabel: { color: '#848E9C', fontSize: 11, formatter: '{value} USDT' },
+            },
+            series: [{
+              data: cumulativeData,
+              type: 'line',
+              smooth: true,
+              symbol: 'none',
+              lineStyle: {
+                color: cumulativeData[cumulativeData.length - 1] >= 0 ? '#0ECB81' : '#F6465D',
+                width: 2
+              },
+              areaStyle: {
+                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                  { offset: 0, color: cumulativeData[cumulativeData.length - 1] >= 0 ? 'rgba(14,203,129,0.3)' : 'rgba(246,70,93,0.3)' },
+                  { offset: 1, color: 'rgba(11,14,17,0)' },
+                ])
+              },
+            }],
+            tooltip: {
+              trigger: 'axis',
+              backgroundColor: '#1E2329',
+              borderColor: '#2B3139',
+              textStyle: { color: '#EAECEF' },
+              formatter: (params) => `${params[0].name}<br/>累计盈亏: ${params[0].value.toFixed(2)} USDT`,
+            },
+          };
+
+          chartInstance.setOption(option);
+        }
+
+        function changeOrderPage(delta) {
+          orderHistory.page += delta;
+          fetchOrders();
+        }
+
+        watch(orderFilter, () => { orderHistory.page = 1; fetchOrders(); });
+        watch(orderSymbolFilter, () => { orderHistory.page = 1; fetchOrders(); });
+
+        onMounted(() => {
+          fetchStatus();
+          fetchOrders();
+          loadPnL(7);
+          pollTimer = setInterval(fetchStatus, 3000);
+          window.addEventListener('resize', () => chartInstance?.resize());
+        });
+
+        onUnmounted(() => {
+          if (pollTimer) clearInterval(pollTimer);
+          chartInstance?.dispose();
+        });
+
+        return {
+          statusData, activeStrategy, currentStrat, orderHistory, orderFilter, orderSymbolFilter,
+          ordersLoading, pnlData, pnlDays, pnlChart, lastUpdate,
+          stateClass, pnlClass, totalPages, strategySymbols, atrList,
+          getAtrPercent, formatPrice, formatQty, formatPnL, formatTime,
+          getOrderBadge, fetchStatus, fetchOrders, loadPnL, changeOrderPage,
+        };
+      },
+    }).use(ElementPlus).mount('#app');
+  </script>
+</body>
+</html>

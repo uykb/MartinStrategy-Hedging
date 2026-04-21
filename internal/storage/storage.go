@@ -66,3 +66,39 @@ func InitStorage(sqlitePath, redisAddr, redisPass string, redisDB int) (*Databas
 func (d *Database) AcquireLock(ctx context.Context, key string, ttl time.Duration) (bool, error) {
 	return d.Redis.SetNX(ctx, key, "locked", ttl).Result()
 }
+
+// GetOrders returns paginated orders from SQLite
+func (d *Database) GetOrders(symbol string, page, size int) ([]Order, int64, error) {
+	var orders []Order
+	var total int64
+
+	query := d.Sqlite.Model(&Order{})
+	if symbol != "" {
+		query = query.Where("symbol = ?", symbol)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * size
+	if err := query.Order("created_at DESC").Offset(offset).Limit(size).Find(&orders).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return orders, total, nil
+}
+
+// GetFilledOrders returns filled orders within the specified number of days
+func (d *Database) GetFilledOrders(days int) ([]Order, error) {
+	var orders []Order
+	since := time.Now().AddDate(0, 0, -days)
+
+	if err := d.Sqlite.Where("status = ? AND created_at >= ?", "FILLED", since).
+		Order("created_at ASC").
+		Find(&orders).Error; err != nil {
+		return nil, err
+	}
+
+	return orders, nil
+}

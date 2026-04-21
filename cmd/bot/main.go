@@ -12,6 +12,7 @@ import (
 	"github.com/uykb/MartinStrategy-Hedging/internal/storage"
 	"github.com/uykb/MartinStrategy-Hedging/internal/strategy"
 	"github.com/uykb/MartinStrategy-Hedging/internal/utils"
+	"github.com/uykb/MartinStrategy-Hedging/internal/web"
 	"go.uber.org/zap"
 )
 
@@ -90,6 +91,16 @@ func main() {
 		coordinator.Start()
 		defer coordinator.Stop()
 	}
+
+	// Web Server
+	webServer := web.NewServer(strategies, db, ex)
+	go func() {
+		addr := ":8080"
+		utils.Logger.Info("Starting web server", zap.String("addr", addr))
+		if err := webServer.Start(addr); err != nil {
+			utils.Logger.Error("Web server failed", zap.Error(err))
+		}
+	}()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

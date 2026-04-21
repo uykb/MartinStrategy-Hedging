@@ -721,6 +721,58 @@ func (s *MartingaleStrategy) getFibonacci(n int) int {
 	return b
 }
 
+// BotStatus represents the current bot status for web display
+type BotStatus struct {
+	State         string
+	PositionAmt   string
+	EntryPrice    string
+	TPOrderID     int64
+	GridSkipCount int64
+	TPSkipCount   int64
+}
+
+// GetStatus returns the current bot status (thread-safe)
+func (s *MartingaleStrategy) GetStatus() BotStatus {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	posAmt := "0"
+	entryPrice := "0"
+	if s.position != nil {
+		posAmt = s.position.PositionAmt
+		entryPrice = s.position.EntryPrice
+	}
+
+	return BotStatus{
+		State:         string(s.currentState),
+		PositionAmt:   posAmt,
+		EntryPrice:    entryPrice,
+		TPOrderID:     s.currentTPOrderID,
+		GridSkipCount: s.gridSkipCount,
+		TPSkipCount:   s.tpSkipCount,
+	}
+}
+
+// FetchATR is the exported version of fetchATR for web access
+func (s *MartingaleStrategy) FetchATR(interval string) float64 {
+	return s.fetchATR(interval)
+}
+
+// GetFibonacci is the exported version of getFibonacci for web access
+func (s *MartingaleStrategy) GetFibonacci(n int) int {
+	return s.getFibonacci(n)
+}
+
+// GetMaxSafetyOrders returns the max safety orders count
+func (s *MartingaleStrategy) GetMaxSafetyOrders() int {
+	return s.cfg.MaxSafetyOrders
+}
+
+// GetName returns the strategy name
+func (s *MartingaleStrategy) GetName() string {
+	return s.cfg.Name
+}
+
 // GetPositionValue returns the current position value in USDT
 func (s *MartingaleStrategy) GetPositionValue() float64 {
 	s.mu.RLock()
