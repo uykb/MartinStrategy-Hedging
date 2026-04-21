@@ -39,7 +39,7 @@ func NewServer(strategies []*strategy.MartingaleStrategy, st *storage.Database, 
 }
 
 func (s *Server) setupRoutes() {
-	// API Routes
+	// API Routes (must be registered before static catch-all)
 	api := s.router.Group("/api")
 	{
 		api.GET("/status", s.handleStatus)
@@ -47,9 +47,11 @@ func (s *Server) setupRoutes() {
 		api.GET("/pnl", s.handlePnL)
 	}
 
-	// Static Files
+	// Static Files - serve index.html for root and SPA fallback
 	staticFS, _ := fs.Sub(staticFiles, "static")
-	s.router.StaticFS("/", http.FS(staticFS))
+	s.router.GET("/", func(c *gin.Context) {
+		c.FileFromFS("/", http.FS(staticFS))
+	})
 }
 
 // Start runs the web server
