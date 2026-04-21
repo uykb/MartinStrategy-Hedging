@@ -26,7 +26,7 @@ hedge:
   rebalance_threshold: 0.15
 
 notification:
-  discord_webhook_url: "https://discord.com/api/webhooks/1364401535806607411/g02O2SLLFylDPFm9sogzbCUUgI-TMFj8IWPLy__jFyL7EYR3GKEiwDfTSQ01BZtHPmFN"
+  discord_webhook_url: ""
   enabled: true
   notify_open: true
   notify_close: true
