@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
@@ -10,6 +11,29 @@ import (
 	"github.com/uykb/MartinStrategy-Hedging/internal/storage"
 	"github.com/uykb/MartinStrategy-Hedging/internal/strategy"
 )
+
+// statusCache caches the status response to avoid expensive ATR fetches on every poll
+type statusCache struct {
+	mu        sync.RWMutex
+	data      StatusResponse
+	lastFetch time.Time
+}
+
+func (c *statusCache) Get() (StatusResponse, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if time.Since(c.lastFetch) < 3*time.Second {
+		return c.data, true
+	}
+	return StatusResponse{}, false
+}
+
+func (c *statusCache) Set(data StatusResponse) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.data = data
+	c.lastFetch = time.Now()
+}
 
 // StatusResponse represents the real-time status API response
 type StatusResponse struct {
@@ -96,6 +120,12 @@ type DailyPnL struct {
 }
 
 func (s *Server) handleStatus(c *gin.Context) {
+	// Return cached data if fresh enough
+	if cached, ok := s.statusCache.Get(); ok {
+		c.JSON(http.StatusOK, cached)
+		return
+	}
+
 	var resp StatusResponse
 
 	for _, strat := range s.strategies {
@@ -165,6 +195,7 @@ func (s *Server) handleStatus(c *gin.Context) {
 		resp.Strategies = append(resp.Strategies, stratStatus)
 	}
 
+	s.statusCache.Set(resp)
 	c.JSON(http.StatusOK, resp)
 }
 

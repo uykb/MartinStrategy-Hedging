@@ -16,10 +16,11 @@ var staticFiles embed.FS
 
 // Server holds dependencies for the web interface
 type Server struct {
-	strategies []*strategy.MartingaleStrategy
-	storage    *storage.Database
-	exchange   *exchange.BinanceClient
-	router     *gin.Engine
+	strategies   []*strategy.MartingaleStrategy
+	storage      *storage.Database
+	exchange     *exchange.BinanceClient
+	router       *gin.Engine
+	statusCache  *statusCache
 }
 
 // NewServer creates a new web server instance
@@ -28,10 +29,11 @@ func NewServer(strategies []*strategy.MartingaleStrategy, st *storage.Database, 
 	r := gin.Default()
 
 	s := &Server{
-		strategies: strategies,
-		storage:    st,
-		exchange:   ex,
-		router:     r,
+		strategies:  strategies,
+		storage:     st,
+		exchange:    ex,
+		router:      r,
+		statusCache: &statusCache{},
 	}
 
 	s.setupRoutes()
@@ -51,6 +53,11 @@ func (s *Server) setupRoutes() {
 	staticFS, _ := fs.Sub(staticFiles, "static")
 	s.router.GET("/", func(c *gin.Context) {
 		c.FileFromFS("/", http.FS(staticFS))
+	})
+
+	// Favicon - return 204 No Content to avoid 404 noise
+	s.router.GET("/favicon.ico", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
 	})
 }
 
