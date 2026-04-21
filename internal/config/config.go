@@ -78,6 +78,15 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
+	// Set defaults for notification booleans (must be before Unmarshal)
+	// so that YAML false values are not overridden
+	viper.SetDefault("notification.enabled", true)
+	viper.SetDefault("notification.notify_open", true)
+	viper.SetDefault("notification.notify_close", true)
+	viper.SetDefault("notification.notify_safety", true)
+	viper.SetDefault("notification.notify_tp", true)
+	viper.SetDefault("notification.notify_hedge_alert", true)
+
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, err
@@ -104,25 +113,9 @@ func LoadConfig(path string) (*Config, error) {
 		}
 	}
 
-	// Set defaults for notification config
-	if !cfg.Notification.Enabled {
-		cfg.Notification.Enabled = false
-	}
-	if !cfg.Notification.NotifyOpen {
-		cfg.Notification.NotifyOpen = true
-	}
-	if !cfg.Notification.NotifyClose {
-		cfg.Notification.NotifyClose = true
-	}
-	if !cfg.Notification.NotifySafety {
-		cfg.Notification.NotifySafety = true
-	}
-	if !cfg.Notification.NotifyTP {
-		cfg.Notification.NotifyTP = true
-	}
-	if !cfg.Notification.NotifyHedgeAlert {
-		cfg.Notification.NotifyHedgeAlert = true
-	}
+	// Set Viper defaults for notification booleans (before Unmarshal)
+	// Note: These are already handled by viper.SetDefault below,
+	// so the explicit overrides above are removed to allow false values from config.
 
 	return &cfg, nil
 }
