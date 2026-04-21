@@ -1,11 +1,13 @@
 package strategy
 
 import (
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/uykb/MartinStrategy-Hedging/internal/config"
 	"github.com/uykb/MartinStrategy-Hedging/internal/core"
+	"github.com/uykb/MartinStrategy-Hedging/internal/exchange"
 	"github.com/uykb/MartinStrategy-Hedging/internal/notifier"
 	"github.com/uykb/MartinStrategy-Hedging/internal/utils"
 	"go.uber.org/zap"
@@ -28,15 +30,17 @@ type HedgeStatus struct {
 type HedgeCoordinator struct {
 	mu          sync.RWMutex
 	strategies  []*MartingaleStrategy
+	exchange    *exchange.BinanceClient
 	cfg         *config.HedgeConfig
 	bus         *core.EventBus
 	monitorStop chan struct{}
 }
 
 // NewHedgeCoordinator creates a new hedge coordinator
-func NewHedgeCoordinator(strategies []*MartingaleStrategy, cfg *config.HedgeConfig, bus *core.EventBus) *HedgeCoordinator {
+func NewHedgeCoordinator(strategies []*MartingaleStrategy, ex *exchange.BinanceClient, cfg *config.HedgeConfig, bus *core.EventBus) *HedgeCoordinator {
 	return &HedgeCoordinator{
 		strategies:  strategies,
+		exchange:    ex,
 		cfg:         cfg,
 		bus:         bus,
 		monitorStop: make(chan struct{}),
@@ -106,7 +110,7 @@ func (hc *HedgeCoordinator) checkHedgeStatus() {
 	}
 }
 
-// GetHedgeStatus calculates and returns the current hedge status
+// GetHedgeStatus calculates and returns the current hedge status using real exchange data
 func (hc *HedgeCoordinator) GetHedgeStatus() HedgeStatus {
 	hc.mu.RLock()
 	defer hc.mu.RUnlock()
@@ -115,14 +119,43 @@ func (hc *HedgeCoordinator) GetHedgeStatus() HedgeStatus {
 	var longStrats, shortStrats []string
 
 	for _, s := range hc.strategies {
-		val := s.GetPositionValue()
-		if s.GetDirection() == DirectionLong {
-			longValue += val
-			longStrats = append(longStrats, s.GetSymbol())
+		symbol := s.GetSymbol()
+		direction := s.GetDirection()
+
+		if direction == DirectionLong {
+			longStrats = append(longStrats, symbol)
 		} else {
-			shortValue += val
-			shortStrats = append(shortStrats, s.GetSymbol())
+			shortStrats = append(shortStrats, symbol)
 		}
+
+		pos, err := hc.exchange.GetPosition(symbol)
+		if err != nil {
+			utils.Logger.Warn("Failed to get position for hedge status",
+				zap.String("symbol", symbol),
+				zap.Error(err))
+			continue
+		}
+
+		amt, _ := strconv.ParseFloat(pos.PositionAmt, 64)
+		entryPrice, _ := strconv.ParseFloat(pos.EntryPrice, 64)
+		notional := amt * entryPrice
+		if notional < 0 {
+			notional = -notional
+		}
+
+		if direction == DirectionLong {
+			longValue += notional
+		} else {
+			shortValue += notional
+		}
+
+		utils.Logger.Debug("Position value for hedge",
+			zap.String("symbol", symbol),
+			zap.String("direction", string(direction)),
+			zap.Float64("amount", amt),
+			zap.Float64("entry_price", entryPrice),
+			zap.Float64("notional", notional),
+		)
 	}
 
 	totalValue := longValue + shortValue
@@ -130,7 +163,7 @@ func (hc *HedgeCoordinator) GetHedgeStatus() HedgeStatus {
 	if shortValue > 0 {
 		ratio = longValue / shortValue
 	} else if longValue > 0 {
-		ratio = 999.0 // effectively infinite
+		ratio = 999.0
 	}
 
 	deviation := 0.0

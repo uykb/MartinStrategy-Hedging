@@ -86,7 +86,7 @@ func main() {
 
 	var coordinator *strategy.HedgeCoordinator
 	if cfg.Hedge.Enabled && len(strategies) > 1 {
-		coordinator = strategy.NewHedgeCoordinator(strategies, &cfg.Hedge, bus)
+		coordinator = strategy.NewHedgeCoordinator(strategies, ex, &cfg.Hedge, bus)
 		coordinator.Start()
 		defer coordinator.Stop()
 	}
