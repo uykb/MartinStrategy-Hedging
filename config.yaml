@@ -12,8 +12,8 @@ strategies:
     max_safety_orders: 9
     atr_period: 14
 
-  - name: "LIT_Short"
-    symbol: "LITUSDT"
+  - name: "SOL_Short"
+    symbol: "SOLUSDT"
     direction: "short"
     enabled: true
     capital_weight: 1.0
@@ -28,11 +28,11 @@ hedge:
 notification:
   discord_webhook_url: ""
   enabled: true
-  notify_open: true
-  notify_close: true
+  notify_open: false
+  notify_close: false
   notify_safety: true
   notify_tp: true
-  notify_hedge_alert: true
+  notify_hedge_alert: false
 
 storage:
   sqlite_path: "bot.db"
