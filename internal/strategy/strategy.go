@@ -281,22 +281,44 @@ func (s *MartingaleStrategy) handleOrderUpdate(ctx context.Context, event core.E
 					go s.updateTP()
 				}
 			} else if order.Side == futures.SideTypeSell {
-				utils.Logger.Info("Sell Order Filled (TP/Manual). Resetting to IDLE.",
+				utils.Logger.Info("Sell Order Filled (TP/Manual/Safety). Checking position.",
 					zap.String("type", string(order.Type)),
 				)
 
 				execPrice, _ := strconv.ParseFloat(order.AveragePrice, 64)
 				execQty, _ := strconv.ParseFloat(order.LastFilledQty, 64)
-				s.mu.Lock()
-				s.currentState = StateIdle
-				s.currentTPOrderID = 0
-				s.positionValue = 0
-				s.mu.Unlock()
 
-				notifier.GetNotifier().NotifyClose(s.symbol, string(s.direction), execPrice, execQty, 0)
+				time.Sleep(500 * time.Millisecond)
+				pos, err := s.exchange.GetPosition(s.symbol)
+				amt := 0.0
+				if err == nil {
+					amt, _ = strconv.ParseFloat(pos.PositionAmt, 64)
+				}
 
-				s.exchange.CancelAllOrders(s.symbol)
-				time.Sleep(10 * time.Second)
+				if math.Abs(amt) == 0 {
+					utils.Logger.Info("Position fully closed. Resetting to IDLE.",
+						zap.String("symbol", s.symbol),
+					)
+					s.mu.Lock()
+					s.currentState = StateIdle
+					s.currentTPOrderID = 0
+					s.positionValue = 0
+					s.mu.Unlock()
+
+					notifier.GetNotifier().NotifyClose(s.symbol, string(s.direction), execPrice, execQty, 0)
+
+					s.exchange.CancelAllOrders(s.symbol)
+					time.Sleep(10 * time.Second)
+				} else {
+					utils.Logger.Info("Position still open after sell fill. Updating TP.",
+						zap.String("symbol", s.symbol),
+						zap.Float64("remaining_amt", amt),
+					)
+					s.mu.Lock()
+					s.currentState = StateInPosition
+					s.mu.Unlock()
+					go s.updateTP()
+				}
 			}
 		} else {
 			// Short direction
@@ -323,22 +345,44 @@ func (s *MartingaleStrategy) handleOrderUpdate(ctx context.Context, event core.E
 					go s.updateTP()
 				}
 			} else if order.Side == futures.SideTypeBuy {
-				utils.Logger.Info("Buy Order Filled (TP/Manual). Resetting to IDLE.",
+				utils.Logger.Info("Buy Order Filled (TP/Manual/Safety). Checking position.",
 					zap.String("type", string(order.Type)),
 				)
 
 				execPrice, _ := strconv.ParseFloat(order.AveragePrice, 64)
 				execQty, _ := strconv.ParseFloat(order.LastFilledQty, 64)
-				s.mu.Lock()
-				s.currentState = StateIdle
-				s.currentTPOrderID = 0
-				s.positionValue = 0
-				s.mu.Unlock()
 
-				notifier.GetNotifier().NotifyClose(s.symbol, string(s.direction), execPrice, execQty, 0)
+				time.Sleep(500 * time.Millisecond)
+				pos, err := s.exchange.GetPosition(s.symbol)
+				amt := 0.0
+				if err == nil {
+					amt, _ = strconv.ParseFloat(pos.PositionAmt, 64)
+				}
 
-				s.exchange.CancelAllOrders(s.symbol)
-				time.Sleep(10 * time.Second)
+				if math.Abs(amt) == 0 {
+					utils.Logger.Info("Position fully closed. Resetting to IDLE.",
+						zap.String("symbol", s.symbol),
+					)
+					s.mu.Lock()
+					s.currentState = StateIdle
+					s.currentTPOrderID = 0
+					s.positionValue = 0
+					s.mu.Unlock()
+
+					notifier.GetNotifier().NotifyClose(s.symbol, string(s.direction), execPrice, execQty, 0)
+
+					s.exchange.CancelAllOrders(s.symbol)
+					time.Sleep(10 * time.Second)
+				} else {
+					utils.Logger.Info("Position still open after buy fill. Updating TP.",
+						zap.String("symbol", s.symbol),
+						zap.Float64("remaining_amt", amt),
+					)
+					s.mu.Lock()
+					s.currentState = StateInPosition
+					s.mu.Unlock()
+					go s.updateTP()
+				}
 			}
 		}
 	}
