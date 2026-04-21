@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -75,7 +76,7 @@ type MartingaleStrategy struct {
 }
 
 func NewMartingaleStrategy(cfg *config.StrategyConfig, ex *exchange.BinanceClient, st *storage.Database, bus *core.EventBus) *MartingaleStrategy {
-	dir := Direction(cfg.Direction)
+	dir := Direction(strings.ToUpper(cfg.Direction))
 	if dir == "" {
 		dir = DirectionLong
 	}
