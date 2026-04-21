@@ -67,6 +67,11 @@ type MartingaleStrategy struct {
 
 	// Position value tracking for hedging
 	positionValue float64
+
+	// Error cooldown
+	muError       sync.RWMutex
+	lastErrorTime time.Time
+	errorCooldown time.Duration
 }
 
 func NewMartingaleStrategy(cfg *config.StrategyConfig, ex *exchange.BinanceClient, st *storage.Database, bus *core.EventBus) *MartingaleStrategy {
@@ -76,18 +81,26 @@ func NewMartingaleStrategy(cfg *config.StrategyConfig, ex *exchange.BinanceClien
 	}
 
 	return &MartingaleStrategy{
-		cfg:          cfg,
-		exchange:     ex,
-		storage:      st,
-		bus:          bus,
-		symbol:       cfg.Symbol,
-		direction:    dir,
-		currentState: StateIdle,
-		activeOrders: make(map[int64]*futures.Order),
+		cfg:           cfg,
+		exchange:      ex,
+		storage:       st,
+		bus:           bus,
+		symbol:        cfg.Symbol,
+		direction:     dir,
+		currentState:  StateIdle,
+		activeOrders:  make(map[int64]*futures.Order),
+		errorCooldown: 30 * time.Second,
 	}
 }
 
 func (s *MartingaleStrategy) Start() {
+	utils.Logger.Info("Strategy starting",
+		zap.String("symbol", s.symbol),
+		zap.String("direction", string(s.direction)),
+		zap.Float64("capital_weight", s.cfg.CapitalWeight),
+		zap.Bool("use_testnet", s.exchange.IsTestnet()),
+	)
+
 	si, err := s.exchange.GetSymbolInfo(s.symbol)
 	if err != nil {
 		utils.Logger.Fatal("Failed to get symbol info", zap.Error(err), zap.String("symbol", s.symbol))
@@ -192,6 +205,15 @@ func (s *MartingaleStrategy) handleTick(ctx context.Context, event core.Event) e
 		s.mu.Unlock()
 		return nil
 	}
+
+	s.muError.RLock()
+	inCooldown := time.Since(s.lastErrorTime) < s.errorCooldown
+	s.muError.RUnlock()
+	if inCooldown {
+		s.mu.Unlock()
+		return nil
+	}
+
 	s.currentState = StatePlacingGrid
 	s.mu.Unlock()
 
@@ -199,9 +221,16 @@ func (s *MartingaleStrategy) handleTick(ctx context.Context, event core.Event) e
 		s.mu.Lock()
 		s.currentState = StateIdle
 		s.mu.Unlock()
-		utils.Logger.Error("enterPosition failed, resetting to IDLE",
+
+		s.muError.Lock()
+		s.lastErrorTime = time.Now()
+		s.muError.Unlock()
+
+		utils.Logger.Error("enterPosition failed, resetting to IDLE (cooling down)",
 			zap.String("symbol", s.symbol),
+			zap.String("direction", string(s.direction)),
 			zap.Error(err),
+			zap.Duration("cooldown", s.errorCooldown),
 		)
 		return err
 	}

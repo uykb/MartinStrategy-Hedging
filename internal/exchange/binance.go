@@ -271,3 +271,8 @@ func (bc *BinanceClient) CancelAllOrdersAllSymbols(symbols []string) error {
 	}
 	return nil
 }
+
+// IsTestnet returns whether testnet is enabled
+func (bc *BinanceClient) IsTestnet() bool {
+	return bc.cfg.UseTestnet
+}
